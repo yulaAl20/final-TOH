@@ -55,6 +55,27 @@ def compare_algorithms(player_name, disk_count, moves_count, move_sequence):
         save_result("Algorithm", disk_count, len(fs_moves), 
                    ",".join(fs_moves), "Frame-Stewart (4 pegs)", fs_time)
 
+# Function to handle individual move using callbacks
+def make_move_callback():
+    source = st.session_state.source_peg
+    destination = st.session_state.destination_peg
+    
+    if source == destination:
+        st.session_state.move_error = "Source and destination pegs cannot be the same!"
+        return
+    
+    if apply_move(st.session_state.game_state, source, destination):
+        st.session_state.move_count += 1
+        st.session_state.moves_made.append(f"{source}->{destination}")
+        st.session_state.move_sequence = ",".join(st.session_state.moves_made)
+        st.session_state.move_error = None
+        
+        # Check if the game is solved
+        if is_solved(st.session_state.game_state, st.session_state.disk_count):
+            st.session_state.game_solved = True
+    else:
+        st.session_state.move_error = "Invalid move! Remember, you cannot place a larger disk on a smaller one."
+
 # Main application
 def main():
     st.set_page_config(page_title="Tower of Hanoi Game", layout="wide")
@@ -65,7 +86,7 @@ def main():
     # App title
     st.title("Tower of Hanoi Game")
     
-    # Initialize session state
+    # Initialize session state variables
     if 'game_active' not in st.session_state:
         st.session_state.game_active = False
     if 'disk_count' not in st.session_state:
@@ -82,6 +103,16 @@ def main():
         st.session_state.peg_count = 3
     if 'move_sequence' not in st.session_state:
         st.session_state.move_sequence = ""
+    if 'source_peg' not in st.session_state:
+        st.session_state.source_peg = 'A'
+    if 'destination_peg' not in st.session_state:
+        st.session_state.destination_peg = 'B'
+    if 'move_error' not in st.session_state:
+        st.session_state.move_error = None
+    if 'game_solved' not in st.session_state:
+        st.session_state.game_solved = False
+    if 'player_name' not in st.session_state:
+        st.session_state.player_name = "Player"
     
     # Sidebar for game options
     st.sidebar.header("Game Options")
@@ -89,19 +120,28 @@ def main():
     # Menu options
     menu = st.sidebar.selectbox("Menu", ["Play Tower of Hanoi", "Leaderboard", "Algorithm Comparison"])
     
-    # Check for drag and drop move submission
+    # Process drag and drop moves
     if 'source' in st.query_params and 'destination' in st.query_params:
         source = st.query_params['source'][0]
         destination = st.query_params['destination'][0]
         
         if source and destination and st.session_state.game_active:
-            if apply_move(st.session_state.game_state, source, destination):
-                st.session_state.move_count += 1
-                st.session_state.moves_made.append(f"{source}->{destination}")
-                st.session_state.move_sequence = ",".join(st.session_state.moves_made)
-                
-                # Check if game is solved
-                check_game_solved()
+            st.session_state.source_peg = source
+            st.session_state.destination_peg = destination
+            make_move_callback()
+
+    # Handle game solved state that happened through drag and drop
+    if st.session_state.game_solved and st.session_state.game_active:
+        st.balloons()
+        st.success(f"Congratulations! You solved the puzzle in {st.session_state.move_count} moves!")
+        
+        # Compare with algorithms
+        compare_algorithms(st.session_state.player_name, st.session_state.disk_count, 
+                         st.session_state.move_count, st.session_state.move_sequence)
+        
+        # Reset game
+        st.session_state.game_active = False
+        st.session_state.game_solved = False
 
     if menu == "Play Tower of Hanoi":
         st.header("Play Tower of Hanoi")
@@ -126,6 +166,8 @@ def main():
                 st.session_state.move_count = 0
                 st.session_state.moves_made = []
                 st.session_state.move_sequence = ""
+                st.session_state.move_error = None
+                st.session_state.game_solved = False
                 
                 # Calculate optimal moves
                 if peg_count == 3:
@@ -147,29 +189,24 @@ def main():
             # Display the game board with drag and drop enabled
             render_game_board(st.session_state.game_state, st.session_state.disk_count, st.session_state.peg_count)
             
+            # Display any move errors
+            if st.session_state.move_error:
+                st.error(st.session_state.move_error)
+            
             # Move input (as alternative to drag and drop)
             st.subheader("Make a Move")
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                source = st.selectbox("From Peg", ['A', 'B', 'C', 'D'][:st.session_state.peg_count])
+                source_options = ['A', 'B', 'C', 'D'][:st.session_state.peg_count]
+                st.selectbox("From Peg", source_options, key="source_peg")
             
             with col2:
-                destination = st.selectbox("To Peg", ['A', 'B', 'C', 'D'][:st.session_state.peg_count])
+                dest_options = ['A', 'B', 'C', 'D'][:st.session_state.peg_count]
+                st.selectbox("To Peg", dest_options, key="destination_peg")
             
             with col3:
-                if st.button("Make Move"):
-                    if source == destination:
-                        st.error("Source and destination pegs cannot be the same!")
-                    elif apply_move(st.session_state.game_state, source, destination):
-                        st.session_state.move_count += 1
-                        st.session_state.moves_made.append(f"{source}->{destination}")
-                        st.session_state.move_sequence = ",".join(st.session_state.moves_made)
-                        
-                        # Check if the game is solved
-                        check_game_solved()
-                    else:
-                        st.error("Invalid move! Remember, you cannot place a larger disk on a smaller one.")
+                st.button("Make Move", on_click=make_move_callback)
             
             # Option to enter full move sequence
             st.subheader("Enter Full Solution")
@@ -183,39 +220,82 @@ def main():
                 default_sequence = st.session_state.move_sequence if st.session_state.move_sequence else ""
                 move_sequence = st.text_input("Move Sequence (e.g., A->B,B->C,A->C)", value=default_sequence)
             
-            if st.button("Submit Solution"):
-                moves = move_sequence.split(',')
-                if len(moves) != move_count:
-                    st.error(f"You specified {move_count} moves but provided {len(moves)} moves!")
-                else:
-                    # Reset game state and apply moves
-                    test_state = init_game_state(st.session_state.disk_count)
-                    valid_solution = True
+            # Process the entered move sequence
+            def submit_solution():
+                moves = st.session_state.solution_sequence.split(',')
+                if len(moves) != st.session_state.move_count_input:
+                    st.session_state.solution_error = f"You specified {st.session_state.move_count_input} moves but provided {len(moves)} moves!"
+                    return
+                
+                # Reset game state and apply moves
+                test_state = init_game_state(st.session_state.disk_count)
+                valid_solution = True
+                
+                for move in moves:
+                    if '->' not in move:
+                        st.session_state.solution_error = f"Invalid move format: {move}. Use 'Source->Destination' format."
+                        valid_solution = False
+                        break
                     
-                    for move in moves:
-                        if '->' not in move:
-                            st.error(f"Invalid move format: {move}. Use 'Source->Destination' format.")
-                            valid_solution = False
-                            break
+                    source, destination = move.split('->')
+                    if not apply_move(test_state, source, destination):
+                        st.session_state.solution_error = f"Invalid move: {move}. Check your solution."
+                        valid_solution = False
+                        break
+                
+                if valid_solution:
+                    if is_solved(test_state, st.session_state.disk_count):
+                        st.session_state.solution_success = True
                         
-                        source, destination = move.split('->')
-                        if not apply_move(test_state, source, destination):
-                            st.error(f"Invalid move: {move}. Check your solution.")
-                            valid_solution = False
-                            break
-                    
-                    if valid_solution:
-                        if is_solved(test_state, st.session_state.disk_count):
-                            st.balloons()
-                            st.success("Your solution is correct!")
-                            
-                            # Compare with algorithms
-                            compare_algorithms(player_name, st.session_state.disk_count, len(moves), move_sequence)
-                            
-                            # Reset game
-                            st.session_state.game_active = False
-                        else:
-                            st.error("Your solution does not solve the puzzle!")
+                        # Apply the moves to the actual game state
+                        st.session_state.game_state = init_game_state(st.session_state.disk_count)
+                        for move in moves:
+                            source, destination = move.split('->')
+                            apply_move(st.session_state.game_state, source, destination)
+                        
+                        # Update session state
+                        st.session_state.move_count = len(moves)
+                        st.session_state.moves_made = moves
+                        st.session_state.move_sequence = st.session_state.solution_sequence
+                    else:
+                        st.session_state.solution_error = "Your solution does not solve the puzzle!"
+            
+            # Add state variables for sequence submission
+            if 'solution_sequence' not in st.session_state:
+                st.session_state.solution_sequence = move_sequence
+            else:
+                st.session_state.solution_sequence = move_sequence
+                
+            if 'move_count_input' not in st.session_state:
+                st.session_state.move_count_input = move_count
+            else:
+                st.session_state.move_count_input = move_count
+                
+            if 'solution_error' not in st.session_state:
+                st.session_state.solution_error = None
+                
+            if 'solution_success' not in st.session_state:
+                st.session_state.solution_success = False
+            
+            # Submit button with callback
+            st.button("Submit Solution", on_click=submit_solution)
+            
+            # Handle solution errors and success
+            if st.session_state.solution_error:
+                st.error(st.session_state.solution_error)
+                st.session_state.solution_error = None
+                
+            if st.session_state.solution_success:
+                st.balloons()
+                st.success("Your solution is correct!")
+                
+                # Compare with algorithms
+                compare_algorithms(st.session_state.player_name, st.session_state.disk_count, 
+                                 st.session_state.move_count, st.session_state.move_sequence)
+                
+                # Reset game
+                st.session_state.game_active = False
+                st.session_state.solution_success = False
             
             # Get a hint
             if st.button("Get Hint"):
