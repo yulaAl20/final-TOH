@@ -1,16 +1,16 @@
 import pymysql
 import streamlit as st
+
 import pandas as pd
 from datetime import datetime
 
 def init_db():
-    db_config = st.secrets["database"]
     conn = pymysql.connect(
-        host=db_config["db_host"],
-        user=db_config["db_user"],
-        password=db_config["db_password"],
-        database=db_config["db_name"],
-        port=int(db_config["db_port"])
+    host=st.secrets["db_host"],
+    user=st.secrets["db_user"],
+    password=st.secrets["db_password"],
+    database=st.secrets["db_name"],
+    port=int(st.secrets["db_port"])
     )
     c = conn.cursor()
     
@@ -47,13 +47,12 @@ def init_db():
     conn.close()
 
 def save_user_game(player_name, disk_count, moves_count, move_sequence):
-    #db_config = st.secrets["database"]
     conn = pymysql.connect(
-        host=db_config["db_host"],
-        user=db_config["db_user"],
-        password=db_config["db_password"],
-        database=db_config["db_name"],
-        port=int(db_config["db_port"])
+    host=st.secrets["db_host"],
+    user=st.secrets["db_user"],
+    password=st.secrets["db_password"],
+    database=st.secrets["db_name"],
+    charset=int(st.secrets["charset"])
     )
     c = conn.cursor()
     c.execute('''
@@ -86,11 +85,11 @@ def get_leaderboard():
 
 def save_algorithm_performance(algorithm, disk_count, execution_time, moves_count, parameters=None, notes=None):
     conn = pymysql.connect(
-        host=db_config["db_host"],        # Access db_host within 'database' section
-        user=db_config["db_user"],
-        password=db_config["db_password"],
-        database=db_config["db_name"],
-        port=int(db_config["charset"])
+    host=st.secrets["db_host"],
+    user=st.secrets["db_user"],
+    password=st.secrets["db_password"],
+    database=st.secrets["db_name"],
+    charset=int(st.secrets["charset"])
     )
     c = conn.cursor()
     c.execute('''
@@ -102,11 +101,11 @@ def save_algorithm_performance(algorithm, disk_count, execution_time, moves_coun
 
 def get_user_leaderboard():
     conn = pymysql.connect(
-        host=db_config["db_host"],        # Access db_host within 'database' section
-        user=db_config["db_user"],
-        password=db_config["db_password"],
-        database=db_config["db_name"],
-        port=int(db_config["charset"])
+    host=st.secrets["db_host"],
+    user=st.secrets["db_user"],
+    password=st.secrets["db_password"],
+    database=st.secrets["db_name"],
+    charset=int(st.secrets["charset"])
     )
     query = '''
     SELECT player_name, disk_count, moves_count, timestamp 
@@ -120,11 +119,12 @@ def get_user_leaderboard():
 
 def get_algorithm_benchmarks():
     conn = pymysql.connect(
-        host=db_config["db_host"],        # Access db_host within 'database' section
-        user=db_config["db_user"],
-        password=db_config["db_password"],
-        database=db_config["db_name"],
-        port=int(db_config["charset"])
+    
+    host=st.secrets["db_host"],
+    user=st.secrets["db_user"],
+    password=st.secrets["db_password"],
+    database=st.secrets["db_name"],
+    charset=int(st.secrets["charset"])
     )
     query = '''
     SELECT algorithm, disk_count, execution_time, moves_count, timestamp 
