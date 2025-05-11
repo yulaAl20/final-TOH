@@ -4,10 +4,11 @@ from datetime import datetime
 
 def init_db():
     conn = pymysql.connect(
-        host='localhost',
-        user='root', 
-        password='', 
-        charset='utf8mb4'
+    host=st.secrets["db_host"],
+    user=st.secrets["db_user"],
+    password=st.secrets["db_password"],
+    database=st.secrets["db_name"],
+    port=int(st.secrets["db_port"])
     )
     c = conn.cursor()
     
