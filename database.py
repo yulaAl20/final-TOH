@@ -1,6 +1,6 @@
 import pymysql
+import streamlit as st
 import pandas as pd
-import st.secrets
 from datetime import datetime
 
 def init_db():
