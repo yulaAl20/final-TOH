@@ -1,136 +1,63 @@
-import pymysql
+import firebase_admin
+from firebase_admin import credentials, firestore
 import streamlit as st
-
 import pandas as pd
 from datetime import datetime
 
-def init_db():
-    conn = pymysql.connect(
-    host=st.secrets["db_host"],
-    user=st.secrets["db_user"],
-    password=st.secrets["db_password"],
-    database=st.secrets["db_name"],
-    port=int(st.secrets["db_port"])
-    )
-    c = conn.cursor()
+# Initialize Firebase
+@st.cache_resource
+def init_firestore():
+     firebase_config = dict(st.secrets["firebase"])
+     cred = credentials.Certificate(firebase_config)
     
-    # Create the database if it doesn't exist
-    c.execute('CREATE DATABASE IF NOT EXISTS tower_of_hanoi')
-    c.execute('USE tower_of_hanoi')
+     if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
     
-    # Create tables
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS user_games (
-        game_id INT AUTO_INCREMENT PRIMARY KEY,
-        player_name VARCHAR(255) NOT NULL,
-        disk_count INT NOT NULL,
-        moves_count INT NOT NULL,
-        move_sequence TEXT NOT NULL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS algorithm_performance (
-        test_id INT AUTO_INCREMENT PRIMARY KEY,
-        algorithm VARCHAR(255) NOT NULL,
-        disk_count INT NOT NULL,
-        execution_time FLOAT NOT NULL,
-        moves_count INT NOT NULL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        parameters TEXT NULL,
-        notes TEXT NULL
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
+     return firestore.client()
+
+db = init_firestore()
 
 def save_user_game(player_name, disk_count, moves_count, move_sequence):
-    conn = pymysql.connect(
-    host=st.secrets["db_host"],
-    user=st.secrets["db_user"],
-    password=st.secrets["db_password"],
-    database=st.secrets["db_name"],
-    charset=int(st.secrets["charset"])
-    )
-    c = conn.cursor()
-    c.execute('''
-    INSERT INTO user_games (player_name, disk_count, moves_count, move_sequence)
-    VALUES (%s, %s, %s, %s)
-    ''', (player_name, disk_count, moves_count, move_sequence))
-    conn.commit()
-    conn.close()
-# Add these wrapper functions to maintain compatibility
-def save_result(player_name, disk_count, moves_count, move_sequence, algorithm_name, execution_time):
-    """
-    Wrapper function to maintain compatibility with app.py
-    Routes to the appropriate function based on algorithm_name
-    """
-    if algorithm_name.startswith("Player Solution"):
-        # For player results
-        save_user_game(player_name, disk_count, moves_count, move_sequence)
-    else:
-        # For algorithm results
-        save_algorithm_performance(algorithm_name, disk_count, execution_time, moves_count, 
-                                  parameters=move_sequence if move_sequence else None)
-
-def get_leaderboard():
-    """
-    Wrapper function to maintain compatibility with app.py
-    """
-    # This returns the user leaderboard, but you could modify this 
-    # to return a combined leaderboard of users and algorithms if desired
-    return get_user_leaderboard()
+    doc_ref = db.collection("user_games").document()
+    doc_ref.set({
+        "player_name": player_name,
+        "disk_count": disk_count,
+        "moves_count": moves_count,
+        "move_sequence": move_sequence,
+        "timestamp": datetime.now()
+    })
 
 def save_algorithm_performance(algorithm, disk_count, execution_time, moves_count, parameters=None, notes=None):
-    conn = pymysql.connect(
-    host=st.secrets["db_host"],
-    user=st.secrets["db_user"],
-    password=st.secrets["db_password"],
-    database=st.secrets["db_name"],
-    charset=int(st.secrets["charset"])
-    )
-    c = conn.cursor()
-    c.execute('''
-    INSERT INTO algorithm_performance (algorithm, disk_count, execution_time, moves_count, parameters, notes)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    ''', (algorithm, disk_count, execution_time, moves_count, parameters, notes))
-    conn.commit()
-    conn.close()
+    doc_ref = db.collection("algorithm_performance").document()
+    doc_ref.set({
+        "algorithm": algorithm,
+        "disk_count": disk_count,
+        "execution_time": execution_time,
+        "moves_count": moves_count,
+        "timestamp": datetime.now(),
+        "parameters": parameters,
+        "notes": notes
+    })
 
 def get_user_leaderboard():
-    conn = pymysql.connect(
-    host=st.secrets["db_host"],
-    user=st.secrets["db_user"],
-    password=st.secrets["db_password"],
-    database=st.secrets["db_name"],
-    charset=int(st.secrets["charset"])
-    )
-    query = '''
-    SELECT player_name, disk_count, moves_count, timestamp 
-    FROM user_games 
-    ORDER BY moves_count ASC, timestamp ASC
-    LIMIT 10
-    '''
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    return df
+    results = db.collection("user_games").order_by("moves_count").order_by("timestamp").limit(10).stream()
+    leaderboard = [{
+        "player_name": doc.to_dict()["player_name"],
+        "disk_count": doc.to_dict()["disk_count"],
+        "moves_count": doc.to_dict()["moves_count"],
+        "timestamp": doc.to_dict()["timestamp"]
+    } for doc in results]
+    return pd.DataFrame(leaderboard)
 
 def get_algorithm_benchmarks():
-    conn = pymysql.connect(
-    
-    host=st.secrets["db_host"],
-    user=st.secrets["db_user"],
-    password=st.secrets["db_password"],
-    database=st.secrets["db_name"],
-    charset=int(st.secrets["charset"])
-    )
-    query = '''
-    SELECT algorithm, disk_count, execution_time, moves_count, timestamp 
-    FROM algorithm_performance 
-    ORDER BY disk_count ASC, execution_time ASC
-    '''
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    return df
+    results = db.collection("algorithm_performance").order_by("disk_count").order_by("execution_time").stream()
+    benchmarks = [{
+        "algorithm": doc.to_dict()["algorithm"],
+        "disk_count": doc.to_dict()["disk_count"],
+        "execution_time": doc.to_dict()["execution_time"],
+        "moves_count": doc.to_dict()["moves_count"],
+        "timestamp": doc.to_dict()["timestamp"],
+        "parameters": doc.to_dict().get("parameters"),
+        "notes": doc.to_dict().get("notes")
+    } for doc in results]
+    return pd.DataFrame(benchmarks)
