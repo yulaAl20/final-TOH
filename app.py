@@ -4,7 +4,7 @@ import random
 import pandas as pd
 
 # Import from local modules
-from database import init_db, save_result, get_leaderboard
+from database import init_firestore, save_user_game, get_user_leaderboard
 from algorithms import solve_hanoi_recursive, solve_hanoi_iterative, solve_frame_stewart
 from game_logic import init_game_state, is_valid_move, apply_move, is_solved
 from ui_components import render_game_board
@@ -166,7 +166,7 @@ def main():
     st.set_page_config(page_title="Tower of Hanoi Game", layout="wide")
     
     # Initialize database
-    init_db()
+    init_firestore()
     
     # App title
     st.title("Tower of Hanoi Game")
