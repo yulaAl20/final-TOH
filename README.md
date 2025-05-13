@@ -1,4 +1,6 @@
 🗼 Tower of Hanoi Solver (3-Peg & 4-Peg) – Streamlit App
+
+
 This is an interactive Tower of Hanoi web application built using Python and Streamlit, supporting both 3-peg and 4-peg versions of the puzzle. The app features three algorithms—Recursive, Iterative, and Frame–Stewart—and stores player scores and algorithm performance statistics using Firebase.
 
 🔧 Features
