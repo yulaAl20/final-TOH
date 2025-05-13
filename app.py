@@ -9,6 +9,8 @@ from algorithms import solve_hanoi_recursive, solve_hanoi_iterative, solve_frame
 from game_logic import init_game_state, is_valid_move, apply_move, is_solved
 from ui_components import render_game_board
 
+st.set_page_config(page_title="Tower of Hanoi Game", layout="wide")
+
 # Helper function to check if game is solved and handle winning state
 def check_game_solved():
     if is_solved(st.session_state.game_state, st.session_state.disk_count):
@@ -163,7 +165,6 @@ def submit_solution():
 
 # Main application
 def main():
-    st.set_page_config(page_title="Tower of Hanoi Game", layout="wide")
     
     # Initialize database
     init_firestore()
